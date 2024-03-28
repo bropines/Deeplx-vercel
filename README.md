@@ -1,5 +1,7 @@
 # DeepLX Vercel
 
+[English](README.md) | [Русский](README_RU.md)
+
 A free, serverless solution for DeepL translation API, allowing seamless integration with your applications. Deploy your own instance or run it locally as per your needs.
 
 ## Features

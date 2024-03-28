@@ -69,7 +69,7 @@ curl --location --request POST 'https://your-deployment-url/api/translate' \
 
 ChatGPT (Кто написал для меня этот файл readme)
 
-[OwO-Network](https://github.com/OwO-Network) и их проект [DeepLX](https://github.com/OwO-Network/)
+[OwO-Network](https://github.com/OwO-Network) и их проект [DeepLX](https://github.com/OwO-Network/DeepLX)
 
 ## Участие
 

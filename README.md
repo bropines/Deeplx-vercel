@@ -68,7 +68,7 @@ After receiving the link in the format `https://your-deployment-url/api/translat
 
 ChatGPT (Who wrote this readme for me)
 
-[OwO-Network](https://github.com/OwO-Network) for the project [DeepLX](https://github.com/OwO-Network/) 
+[OwO-Network](https://github.com/OwO-Network) for the project [DeepLX](https://github.com/OwO-Network/DeepLX)
 
 ## Contributing
 

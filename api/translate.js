@@ -1,8 +1,11 @@
-const { translate } = require('../translate'); // Импортируем функцию перевода
+const { translate } = require('../translate');
 
 module.exports = async (req, res) => {
-  // Проверяем, что метод POST и тело запроса содержат необходимые данные
+  const startTime = Date.now();
+  
   if (req.method !== 'POST' || !req.body || !req.body.text) {
+    const duration = Date.now() - startTime;
+    console.log(`[LOG] ${new Date().toISOString()} | 404 | ${duration}ms | POST "/translate"`);
     return res.status(404).json({
       "code": 404,
       "message": "Path not found"
@@ -13,6 +16,9 @@ module.exports = async (req, res) => {
 
   try {
     const result = await translate(text, source_lang, target_lang);
+    const duration = Date.now() - startTime;
+    console.log(`[LOG] ${new Date().toISOString()} | 200 | ${duration}ms | POST "/translate"`);
+    
     res.json({
       alternatives: result.alternatives,
       code: 200,
@@ -23,8 +29,8 @@ module.exports = async (req, res) => {
       target_lang,
     });
   } catch (error) {
-    // Логируем ошибку для отладки
-    console.error("Error during translation:", error);
+    const duration = Date.now() - startTime;
+    console.error(`[ERROR] ${new Date().toISOString()} | 500 | ${duration}ms | POST "/translate" | ${error.message}`);
     res.status(500).json({ code: 500, message: 'Translation failed', error: error.message });
   }
 };

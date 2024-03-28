@@ -1,7 +1,6 @@
 module.exports = (req, res) => {
-    res.json({
-      "code": 200,
-      "message": "DeepL Free API, Developed by sjlleo and missuo. Go to /translate with POST. http://github.com/OwO-Network/DeepLX"
-    });
-  };
-  
+  res.json({
+    code: 200,
+    message: "Welcome to the DeepL Free API. Please POST to /api/translate. Visit http://github.com/OwO-Network/DeepLX for more information."
+  });
+};

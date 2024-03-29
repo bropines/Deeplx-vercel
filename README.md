@@ -57,7 +57,7 @@ curl --location --request POST 'https://your-deployment-url/api/translate' \
 
 Replace `https://your-deployment-url` with the actual URL of your Vercel deployment or `http://localhost:9000` if you're running locally.
 
-## For Ballon Translator users
+## For [Ballon Translator](https://github.com/dmMaze/BallonsTranslator) users
 After receiving the link in the format `https://your-deployment-url/api/translate` just paste it into `api_url`
 <b>
 ![image](https://github.com/bropines/Deeplx-vercel/assets/57861007/335afdf4-2c3c-4970-b266-2cabdb5c7931)

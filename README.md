@@ -62,7 +62,8 @@ After receiving the link in the format `https://your-deployment-url/api/translat
 <b>
 ![image](https://github.com/bropines/Deeplx-vercel/assets/57861007/335afdf4-2c3c-4970-b266-2cabdb5c7931)
 
-### For auto-update (just in case I think of something clever) I borrowed sync.yml from https://github.com/drmartinmar/Deeplx-vercel. Thank you. To make it work, you kind of have to manually go into *actions* and run workflow,
+### For auto-update (just in case I think of something clever) I borrowed sync.yml from https://github.com/drmartinmar/Deeplx-vercel. Thank you. 
+- To make it work, you kind of have to manually go into *actions* and run workflow,
 
 ## Thanks
 [LegendLeo](https://github.com/LegendLeo) for the basic serverless implementation.

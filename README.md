@@ -1,3 +1,5 @@
+#API IS NOT WORKING AT THIS MOMENT. I'M IN THE PROCESS OF FIXING IT
+
 # DeepLX Vercel
 
 [English](README.md) | [Русский](README_RU.md)

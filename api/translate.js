@@ -7,7 +7,7 @@ module.exports = async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Access-Control-Max-Age', '86400'); // Cache preflight (1 day)
+    res.setHeader('Access-Control-Max-Age', '86400'); // Кэширование preflight-запросов на 1 день
     return res.status(204).end();
   }
 
@@ -16,7 +16,7 @@ module.exports = async (req, res) => {
     console.log(`[LOG] ${new Date().toISOString()} | 404 | ${duration}ms | POST "/translate"`);
     return res.status(404).json({
       code: 404,
-      message: 'Path not found',
+      message: 'Путь не найден',
     });
   }
 
@@ -24,10 +24,6 @@ module.exports = async (req, res) => {
 
   try {
     const result = await translate(text, source_lang, target_lang, tag_handling);
-
-    // Generate a random ID if not already present
-    const responseId = result.id || Math.floor(Math.random() * 10000000000);
-
     const duration = Date.now() - startTime;
     console.log(`[LOG] ${new Date().toISOString()} | 200 | ${duration}ms | POST "/translate"`);
 
@@ -35,16 +31,14 @@ module.exports = async (req, res) => {
       alternatives: result.alternatives,
       code: 200,
       data: result.data,
-      id: responseId,
+      id: result.id,
       method: result.method,
       source_lang: result.source_lang,
       target_lang: result.target_lang,
     });
   } catch (error) {
     const duration = Date.now() - startTime;
-    console.error(
-      `[ERROR] ${new Date().toISOString()} | 500 | ${duration}ms | POST "/translate" | ${error.message}`
-    );
-    res.status(500).json({ code: 500, message: 'Translation failed', error: error.message });
+    console.error(`[ERROR] ${new Date().toISOString()} | 500 | ${duration}ms | POST "/translate" | ${error.message}`);
+    res.status(500).json({ code: 500, message: 'Ошибка перевода', error: error.message });
   }
 };

@@ -1,43 +1,17 @@
 const axios = require('axios').default;
 const { random } = require('lodash');
+const zlib = require('zlib');
 
 const DEEPL_BASE_URL = 'https://www2.deepl.com/jsonrpc';
-const headers = {
-  'Content-Type': 'application/json',
-  Accept: '*/*',
-  'x-app-os-name': 'iOS',
-  'x-app-os-version': '16.3.0',
-  'Accept-Language': 'en-US,en;q=0.9',
-  'Accept-Encoding': 'gzip, deflate, br',
-  'x-app-device': 'iPhone13,2',
-  'User-Agent': 'DeepL-iOS/2.9.1 iOS 16.3.0 (iPhone13,2)',
-  'x-app-build': '510265',
-  'x-app-version': '2.9.1',
-  Connection: 'keep-alive',
-};
 
-/**
- * Counts the number of 'i' characters in the text.
- * @param {string} translateText - The text to analyze.
- * @returns {number} - The count of 'i' characters.
- */
 function getICount(translateText) {
   return (translateText || '').split('i').length - 1;
 }
 
-/**
- * Generates a random number for request ID.
- * @returns {number} - A random number.
- */
 function getRandomNumber() {
-  return random(8300000, 8399999) * 1000;
+  return random(8300000, 8399998) * 1000;
 }
 
-/**
- * Generates a timestamp adjusted based on the 'i' count.
- * @param {number} iCount - The count of 'i' characters.
- * @returns {number} - The adjusted timestamp.
- */
 function getTimestamp(iCount) {
   const ts = Date.now();
   if (iCount === 0) {
@@ -47,23 +21,11 @@ function getTimestamp(iCount) {
   return ts - (ts % iCount) + iCount;
 }
 
-/**
- * Checks if the text contains HTML-like tags.
- * @param {string} text - The text to check.
- * @returns {boolean} - True if text contains tags, false otherwise.
- */
 function isRichText(text) {
   return text.includes('<') && text.includes('>');
 }
 
-/**
- * Makes a request to DeepL API.
- * @param {object} postData - The data to send in the request.
- * @param {string} method - The method name for the API call.
- * @param {string} [dlSession=''] - Optional session token for Pro accounts.
- * @returns {object} - The parsed JSON response from the API.
- */
-async function makeRequest(postData, method, dlSession = '') {
+async function makeRequest(postData, method, dlSession = '', proxy = '') {
   const url = `${DEEPL_BASE_URL}?client=chrome-extension,1.28.0&method=${method}`;
   let postDataStr = JSON.stringify(postData);
 
@@ -74,40 +36,57 @@ async function makeRequest(postData, method, dlSession = '') {
     postDataStr = postDataStr.replace('"method":"', '"method": "');
   }
 
-  const requestHeaders = {
-    ...headers,
-    ...(dlSession && { Cookie: `dl_session=${dlSession}` }),
+  const headers = {
+    'Accept': '*/*',
+    'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8',
+    'Authorization': 'DeepLAuth',
+    'Cache-Control': 'no-cache',
+    'Content-Type': 'application/json',
+    'Pragma': 'no-cache',
+    'Origin': 'chrome-extension://cofdbpoegempjloogbagkncekinflcnj',
+    'Referer': 'https://www.deepl.com/',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)',
+    'Cookie': dlSession ? `dl_session=${dlSession}` : '',
   };
 
   try {
     const response = await axios.post(url, postDataStr, {
-      headers: requestHeaders,
+      headers: headers,
+      responseType: 'arraybuffer', // Чтобы получить данные в виде Buffer
+      decompress: false, // Отключаем автоматическую декомпрессию
+      ...(proxy && { proxy: proxy }), // Если нужен прокси
+      validateStatus: function (status) {
+        return status >= 200 && status < 500; // Обрабатываем все коды от 200 до 499
+      },
     });
+
+    // Обработка Brotli-сжатия
+    let data;
+    const encoding = response.headers['content-encoding'];
+    if (encoding === 'br') {
+      data = zlib.brotliDecompressSync(response.data).toString();
+    } else {
+      data = response.data.toString();
+    }
 
     if (response.status === 429) {
       throw new Error(
-        `Too many requests. Your IP has been temporarily blocked by DeepL. Please avoid making too many requests in a short period.`
+        `Слишком много запросов. Ваш IP временно заблокирован DeepL. Пожалуйста, не делайте слишком много запросов за короткое время.`
       );
     }
 
     if (response.status !== 200) {
-      console.error('Error', response.status);
-      return null;
+      console.error('Ошибка', response.status);
+      throw new Error(`Ошибка от сервера DeepL: ${response.status}`);
     }
 
-    return response.data;
+    return JSON.parse(data);
   } catch (err) {
     console.error(err);
     throw err;
   }
 }
 
-/**
- * Splits the text using DeepL's split text API.
- * @param {string} text - The text to split.
- * @param {string} tagHandling - Tag handling option ('html', 'xml', or '').
- * @returns {object} - The response from the split text API.
- */
 async function splitText(text, tagHandling) {
   const id = getRandomNumber();
   const postData = {
@@ -128,17 +107,6 @@ async function splitText(text, tagHandling) {
   return response;
 }
 
-/**
- * Translates text using DeepL's API.
- * @param {string} text - The text to translate.
- * @param {string} [sourceLang='auto'] - Source language code.
- * @param {string} [targetLang='RU'] - Target language code.
- * @param {string} [tagHandling=''] - Tag handling option ('html', 'xml', or '').
- * @param {number} [numberAlternative=0] - Number of alternative translations.
- * @param {boolean} [printResult=false] - Whether to print the result.
- * @param {string} [dlSession=''] - Optional session token for Pro accounts.
- * @returns {object} - The translation result.
- */
 async function translate(
   text,
   sourceLang = 'auto',
@@ -146,15 +114,16 @@ async function translate(
   tagHandling = '',
   numberAlternative = 0,
   printResult = false,
-  dlSession = ''
+  dlSession = '',
+  proxy = ''
 ) {
   if (!text) {
-    throw new Error('No text provided for translation.');
+    throw new Error('Нет текста для перевода.');
   }
 
   const splitResult = await splitText(text, tagHandling);
   if (!splitResult || !splitResult.result) {
-    throw new Error('Failed to split the text.');
+    throw new Error('Не удалось разделить текст.');
   }
 
   const detectedSourceLang = splitResult.result.lang.detected || sourceLang;
@@ -172,7 +141,7 @@ async function translate(
       kind: 'default',
       raw_en_context_before: contextBefore,
       raw_en_context_after: contextAfter,
-      preferred_num_beams: numberAlternative + 1,
+      preferred_num_beams: 1,
       sentences: [
         {
           id: idx + 1,
@@ -213,10 +182,10 @@ async function translate(
     },
   };
 
-  const response = await makeRequest(postData, 'LMT_handle_jobs', dlSession);
+  const response = await makeRequest(postData, 'LMT_handle_jobs', dlSession, proxy);
 
   if (!response || !response.result) {
-    throw new Error('Translation failed.');
+    throw new Error('Не удалось выполнить перевод.');
   }
 
   const translations = response.result.translations;
@@ -229,7 +198,7 @@ async function translate(
       let altText = '';
       for (const translation of translations) {
         if (i < translation.beams.length) {
-          altText += translation.beams[i].sentences[0].text;
+          altText += translation.beams[i].sentences.map(s => s.text).join(' ');
         }
       }
       if (altText) {
@@ -238,13 +207,13 @@ async function translate(
     }
 
     for (const translation of translations) {
-      translatedText += translation.beams[0].sentences[0].text + ' ';
+      translatedText += translation.beams[0].sentences.map(s => s.text).join(' ') + ' ';
     }
     translatedText = translatedText.trim();
   }
 
   if (!translatedText) {
-    throw new Error('No translation received.');
+    throw new Error('Перевод не получен.');
   }
 
   const result = {

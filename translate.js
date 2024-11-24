@@ -25,42 +25,47 @@ function isRichText(text) {
   return text.includes('<') && text.includes('>');
 }
 
-async function makeRequest(postData, method, dlSession = '', proxy = '') {
-  const url = `${DEEPL_BASE_URL}?client=chrome-extension,1.28.0&method=${method}`;
-  let postDataStr = JSON.stringify(postData);
-
+function formatPostString(postData) {
+  let postStr = JSON.stringify(postData);
   const id = postData.id;
+
   if ((id + 5) % 29 === 0 || (id + 3) % 13 === 0) {
-    postDataStr = postDataStr.replace('"method":"', '"method" : "');
+    postStr = postStr.replace('"method":"', '"method" : "');
   } else {
-    postDataStr = postDataStr.replace('"method":"', '"method": "');
+    postStr = postStr.replace('"method":"', '"method": "');
   }
+
+  return postStr;
+}
+
+async function makeRequest(postData, method, dlSession = '', proxy = '') {
+  const url = `${DEEPL_BASE_URL}?client=chrome-extension,1.6.0&method=${method}`;
+  const postDataStr = formatPostString(postData);
 
   const headers = {
     'Accept': '*/*',
-    'Accept-Language': 'en-US,en;q=0.9,zh-CN;q=0.8',
-    'Authorization': 'DeepLAuth',
-    'Cache-Control': 'no-cache',
+    'Accept-Language': 'en-US,en;q=0.9',
     'Content-Type': 'application/json',
-    'Pragma': 'no-cache',
-    'Origin': 'chrome-extension://cofdbpoegempjloogbagkncekinflcnj',
+    'Origin': 'chrome-extension://bppidhpdkcbahckohjehbehjmcnhpkck',
     'Referer': 'https://www.deepl.com/',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko)',
-    'Cookie': dlSession ? `dl_session=${dlSession}` : '',
+    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
   };
+
+  if (dlSession) {
+    headers['Cookie'] = `dl_session=${dlSession}`;
+  }
 
   try {
     const response = await axios.post(url, postDataStr, {
       headers: headers,
-      responseType: 'arraybuffer', // Чтобы получить данные в виде Buffer
-      decompress: false, // Отключаем автоматическую декомпрессию
-      ...(proxy && { proxy: proxy }), // Если нужен прокси
+      responseType: 'arraybuffer',
+      decompress: false,
+      ...(proxy && { proxy: proxy }),
       validateStatus: function (status) {
-        return status >= 200 && status < 500; // Обрабатываем все коды от 200 до 499
+        return status >= 200 && status < 500;
       },
     });
 
-    // Обработка Brotli-сжатия
     let data;
     const encoding = response.headers['content-encoding'];
     if (encoding === 'br') {
@@ -69,20 +74,12 @@ async function makeRequest(postData, method, dlSession = '', proxy = '') {
       data = response.data.toString();
     }
 
-    if (response.status === 429) {
-      throw new Error(
-        `Слишком много запросов. Ваш IP временно заблокирован DeepL. Пожалуйста, не делайте слишком много запросов за короткое время.`
-      );
-    }
-
-    if (response.status !== 200) {
-      console.error('Ошибка', response.status);
-      throw new Error(`Ошибка от сервера DeepL: ${response.status}`);
+    if (response.status >= 400) {
+      throw new Error(`Ошибка от сервера DeepL: ${response.status} - ${data}`);
     }
 
     return JSON.parse(data);
   } catch (err) {
-    console.error(err);
     throw err;
   }
 }
@@ -99,7 +96,7 @@ async function splitText(text, tagHandling) {
         lang_user_selected: 'auto',
       },
       splitting: 'newlines',
-      text_type: tagHandling || isRichText(text) ? 'richtext' : 'plain',
+      text_type: (tagHandling === 'html' || tagHandling === 'xml' || isRichText(text)) ? 'richtext' : 'plaintext',
     },
   };
 
@@ -112,8 +109,6 @@ async function translate(
   sourceLang = 'auto',
   targetLang = 'RU',
   tagHandling = '',
-  numberAlternative = 0,
-  printResult = false,
   dlSession = '',
   proxy = ''
 ) {
@@ -225,10 +220,6 @@ async function translate(
     target_lang: targetLang,
     method: dlSession ? 'Pro' : 'Free',
   };
-
-  if (printResult) {
-    console.log(result);
-  }
 
   return result;
 }

@@ -1,5 +1,4 @@
 const axios = require('axios').default;
-const { random } = require('lodash');
 const zlib = require('zlib');
 
 const DEEPL_BASE_URL = 'https://www2.deepl.com/jsonrpc';
@@ -45,6 +44,7 @@ async function makeRequest(postData, method, dlSession = '', proxy = '') {
   const headers = {
     'Accept': '*/*',
     'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br', // Добавлено
     'Authorization': 'None',
     'Cache-Control': 'no-cache',
     'Content-Type': 'application/json',
@@ -93,6 +93,8 @@ async function makeRequest(postData, method, dlSession = '', proxy = '') {
     const encoding = response.headers['content-encoding'];
     if (encoding === 'br') {
       data = zlib.brotliDecompressSync(response.data).toString();
+    } else if (encoding === 'gzip') {
+      data = zlib.gunzipSync(response.data).toString(); // Обработка Gzip
     } else {
       data = response.data.toString();
     }

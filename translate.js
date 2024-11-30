@@ -9,7 +9,7 @@ function getICount(translateText) {
 }
 
 function getRandomNumber() {
-  return random(8300000, 8399998) * 1000;
+  return Math.floor(Math.random() * (8399998 - 8300000 + 1)) + 8300000;
 }
 
 function getTimestamp(iCount) {
@@ -39,32 +39,55 @@ function formatPostString(postData) {
 }
 
 async function makeRequest(postData, method, dlSession = '', proxy = '') {
-  const url = `${DEEPL_BASE_URL}?client=chrome-extension,1.6.0&method=${method}`;
+  const url = `${DEEPL_BASE_URL}?client=chrome-extension%2C1.28.0&method=${method}`;
   const postDataStr = formatPostString(postData);
 
   const headers = {
     'Accept': '*/*',
     'Accept-Language': 'en-US,en;q=0.9',
+    'Authorization': 'None',
+    'Cache-Control': 'no-cache',
     'Content-Type': 'application/json',
-    'Origin': 'chrome-extension://bppidhpdkcbahckohjehbehjmcnhpkck',
+    'DNT': '1',
+    'Origin': 'chrome-extension://cofdbpoegempjloogbagkncekinflcnj',
+    'Pragma': 'no-cache',
+    'Priority': 'u=1, i',
     'Referer': 'https://www.deepl.com/',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    'Sec-Fetch-Dest': 'empty',
+    'Sec-Fetch-Mode': 'cors',
+    'Sec-Fetch-Site': 'none',
+    'Sec-GPC': '1',
+    'User-Agent': 'DeepLBrowserExtension/1.28.0 Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
   };
 
   if (dlSession) {
     headers['Cookie'] = `dl_session=${dlSession}`;
   }
 
+  const axiosOptions = {
+    method: 'POST',
+    url: url,
+    headers: headers,
+    data: postDataStr,
+    responseType: 'arraybuffer',
+    decompress: false,
+    validateStatus: function (status) {
+      return status >= 200 && status < 500;
+    },
+  };
+
+  if (proxy) {
+    const [host, port] = proxy.split(':');
+    axiosOptions.proxy = {
+      host: host,
+      port: parseInt(port, 10),
+    };
+  } else {
+    axiosOptions.proxy = false;
+  }
+
   try {
-    const response = await axios.post(url, postDataStr, {
-      headers: headers,
-      responseType: 'arraybuffer',
-      decompress: false,
-      ...(proxy && { proxy: proxy }),
-      validateStatus: function (status) {
-        return status >= 200 && status < 500;
-      },
-    });
+    const response = await axios(axiosOptions);
 
     let data;
     const encoding = response.headers['content-encoding'];
@@ -96,7 +119,7 @@ async function splitText(text, tagHandling) {
         lang_user_selected: 'auto',
       },
       splitting: 'newlines',
-      text_type: (tagHandling === 'html' || tagHandling === 'xml' || isRichText(text)) ? 'richtext' : 'plaintext',
+      text_type: tagHandling || isRichText(text) ? 'richtext' : 'plaintext',
     },
   };
 
@@ -116,7 +139,7 @@ async function translate(
     throw new Error('Нет текста для перевода.');
   }
 
-  const splitResult = await splitText(text, tagHandling);
+  const splitResult = await splitText(text, tagHandling === 'html' || tagHandling === 'xml');
   if (!splitResult || !splitResult.result) {
     throw new Error('Не удалось разделить текст.');
   }
@@ -134,9 +157,9 @@ async function translate(
 
     jobs.push({
       kind: 'default',
+      preferred_num_beams: 4,
       raw_en_context_before: contextBefore,
       raw_en_context_after: contextAfter,
-      preferred_num_beams: 1,
       sentences: [
         {
           id: idx + 1,
@@ -158,6 +181,11 @@ async function translate(
   const iCount = getICount(text);
   const id = getRandomNumber();
 
+  const commonJobParams = {
+    mode: 'translate',
+    ...(hasRegionalVariant && { regionalVariant: targetLang }),
+  };
+
   const postData = {
     jsonrpc: '2.0',
     method: 'LMT_handle_jobs',
@@ -165,14 +193,11 @@ async function translate(
     params: {
       jobs: jobs,
       lang: {
-        source_lang_user_selected: detectedSourceLang.toUpperCase(),
+        source_lang_computed: detectedSourceLang.toUpperCase(),
         target_lang: targetLangCode.toUpperCase(),
       },
       priority: 1,
-      commonJobParams: {
-        mode: 'translate',
-        ...(hasRegionalVariant && { regionalVariant: targetLang }),
-      },
+      commonJobParams: commonJobParams,
       timestamp: getTimestamp(iCount),
     },
   };

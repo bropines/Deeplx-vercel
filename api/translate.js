@@ -7,7 +7,7 @@ module.exports = async (req, res) => {
     res.setHeader('Access-Control-Allow-Origin', '*');
     res.setHeader('Access-Control-Allow-Methods', 'POST, GET, OPTIONS');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-    res.setHeader('Access-Control-Max-Age', '86400'); // Кэширование preflight-запросов на 1 день
+    res.setHeader('Access-Control-Max-Age', '86400');
     return res.status(204).end();
   }
 
@@ -20,10 +20,10 @@ module.exports = async (req, res) => {
     });
   }
 
-  const { text, source_lang = 'auto', target_lang = 'RU', tag_handling = '' } = req.body;
+  const { text, source_lang = 'auto', target_lang = 'RU', tag_handling = '', dl_session = '', proxy = '' } = req.body;
 
   try {
-    const result = await translate(text, source_lang, target_lang, tag_handling);
+    const result = await translate(text, source_lang, target_lang, tag_handling, dl_session, proxy);
     const duration = Date.now() - startTime;
     console.log(`[LOG] ${new Date().toISOString()} | 200 | ${duration}ms | POST "/translate"`);
 

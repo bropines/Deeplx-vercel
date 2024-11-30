@@ -1,5 +1,3 @@
-# temporary not working
-
 DeepLX Vercel
 =============
 

@@ -1,5 +1,7 @@
+/* translate.js - Обновленная логика DeepL Free API */
 const axios = require('axios').default;
 const zlib = require('zlib');
+const brotli = require('brotli'); // Потребуется установка: npm install brotli
 
 const DEEPL_BASE_URL = 'https://www2.deepl.com/jsonrpc';
 
@@ -8,27 +10,23 @@ function getICount(translateText) {
 }
 
 function getRandomNumber() {
-  return Math.floor(Math.random() * (8399998 - 8300000 + 1)) + 8300000;
+  const src = crypto.getRandomValues(new Uint32Array(1))[0]; // Более безопасный способ генерации случайных чисел в браузере и Node.js
+  return (src % 99999 + 8300000) * 1000;
 }
 
-function getTimestamp(iCount) {
+function getTimeStamp(iCount) {
   const ts = Date.now();
-  if (iCount === 0) {
-    return ts;
+  if (iCount !== 0) {
+    iCount = iCount + 1;
+    return ts - (ts % iCount) + iCount;
   }
-  iCount++;
-  return ts - (ts % iCount) + iCount;
-}
-
-function isRichText(text) {
-  return text.includes('<') && text.includes('>');
+  return ts;
 }
 
 function formatPostString(postData) {
   let postStr = JSON.stringify(postData);
-  const id = postData.id;
 
-  if ((id + 5) % 29 === 0 || (id + 3) % 13 === 0) {
+  if ((postData.id + 5) % 29 === 0 || (postData.id + 3) % 13 === 0) {
     postStr = postStr.replace('"method":"', '"method" : "');
   } else {
     postStr = postStr.replace('"method":"', '"method": "');
@@ -37,27 +35,23 @@ function formatPostString(postData) {
   return postStr;
 }
 
-async function makeRequest(postData, method, dlSession = '', proxy = '') {
-  const url = `${DEEPL_BASE_URL}?client=chrome-extension%2C1.28.0&method=${method}`;
-  const postDataStr = formatPostString(postData);
+async function makeRequest(postData, dlSession = '', proxy = '') {
+  const urlFull = `${DEEPL_BASE_URL}`;
+  const postStr = formatPostString(postData);
 
   const headers = {
-    'Accept': '*/*',
-    'Accept-Language': 'en-US,en;q=0.9',
-    'Accept-Encoding': 'gzip, deflate, br', // Добавлено
-    'Authorization': 'None',
-    'Cache-Control': 'no-cache',
     'Content-Type': 'application/json',
-    'DNT': '1',
-    'Origin': 'chrome-extension://cofdbpoegempjloogbagkncekinflcnj',
-    'Pragma': 'no-cache',
-    'Priority': 'u=1, i',
+    'User-Agent': 'DeepL/1627620 CFNetwork/3826.500.62.2.1 Darwin/24.4.0',
+    'Accept': '*/*',
+    'X-App-Os-Name': 'iOS',
+    'X-App-Os-Version': '18.4.0',
+    'Accept-Language': 'en-US,en;q=0.9',
+    'Accept-Encoding': 'gzip, deflate, br',
+    'X-App-Device': 'iPhone16,2',
     'Referer': 'https://www.deepl.com/',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'none',
-    'Sec-GPC': '1',
-    'User-Agent': 'DeepLBrowserExtension/1.28.0 Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
+    'X-Product': 'translator',
+    'X-App-Build': '1627620',
+    'X-App-Version': '25.1',
   };
 
   if (dlSession) {
@@ -66,11 +60,11 @@ async function makeRequest(postData, method, dlSession = '', proxy = '') {
 
   const axiosOptions = {
     method: 'POST',
-    url: url,
+    url: urlFull,
     headers: headers,
-    data: postDataStr,
-    responseType: 'arraybuffer',
-    decompress: false,
+    data: postStr,
+    responseType: 'arraybuffer', // Важно для обработки сжатия
+    decompress: false, // Отключаем автоматическую декомпрессию axios
     validateStatus: function (status) {
       return status >= 200 && status < 500;
     },
@@ -92,12 +86,16 @@ async function makeRequest(postData, method, dlSession = '', proxy = '') {
     let data;
     const encoding = response.headers['content-encoding'];
     if (encoding === 'br') {
-      data = zlib.brotliDecompressSync(response.data).toString();
+      data = brotli.decompress(response.data).toString('utf-8'); // Используем brotli.decompress
     } else if (encoding === 'gzip') {
-      data = zlib.gunzipSync(response.data).toString(); // Обработка Gzip
-    } else {
-      data = response.data.toString();
+      data = zlib.gunzipSync(response.data).toString('utf-8');
+    } else if (encoding === 'deflate') {
+      data = zlib.inflateRawSync(response.data).toString('utf-8'); // Для deflate raw
     }
+    else {
+      data = response.data.toString('utf-8');
+    }
+
 
     if (response.status >= 400) {
       throw new Error(`Ошибка от сервера DeepL: ${response.status} - ${data}`);
@@ -109,31 +107,12 @@ async function makeRequest(postData, method, dlSession = '', proxy = '') {
   }
 }
 
-async function splitText(text, tagHandling) {
-  const id = getRandomNumber();
-  const postData = {
-    jsonrpc: '2.0',
-    method: 'LMT_split_text',
-    id: id,
-    params: {
-      texts: [text],
-      lang: {
-        lang_user_selected: 'auto',
-      },
-      splitting: 'newlines',
-      text_type: tagHandling || isRichText(text) ? 'richtext' : 'plaintext',
-    },
-  };
-
-  const response = await makeRequest(postData, 'LMT_split_text');
-  return response;
-}
 
 async function translate(
   text,
   sourceLang = 'auto',
   targetLang = 'RU',
-  tagHandling = '',
+  tagHandling = 'plaintext', // Значение по умолчанию 'plaintext'
   dlSession = '',
   proxy = ''
 ) {
@@ -141,109 +120,142 @@ async function translate(
     throw new Error('Нет текста для перевода.');
   }
 
-  const splitResult = await splitText(text, tagHandling === 'html' || tagHandling === 'xml');
-  if (!splitResult || !splitResult.result) {
-    throw new Error('Не удалось разделить текст.');
-  }
+  const textParts = text.split('\n'); // Разделение текста на части по новой строке
+  const translatedParts = [];
+  const allAlternatives = [];
 
-  const detectedSourceLang = splitResult.result.lang.detected || sourceLang;
+  for (const part of textParts) {
+    if (part.trim() === '') {
+      translatedParts.push('');
+      allAlternatives.push(['']);
+      continue;
+    }
 
-  const jobs = [];
-  const chunks = splitResult.result.texts[0].chunks;
-  for (let idx = 0; idx < chunks.length; idx++) {
-    const chunk = chunks[idx];
-    const sentence = chunk.sentences[0];
+    let currentSourceLang = sourceLang;
+    if (sourceLang === 'auto' || sourceLang === '') {
+      // В JS версии пока не определяем язык, оставляем 'auto' для DeepL
+      currentSourceLang = 'auto';
+    }
 
-    const contextBefore = idx > 0 ? [chunks[idx - 1].sentences[0].text] : [];
-    const contextAfter = idx < chunks.length - 1 ? [chunks[idx + 1].sentences[0].text] : [];
-
+    const jobs = [];
     jobs.push({
       kind: 'default',
       preferred_num_beams: 4,
-      raw_en_context_before: contextBefore,
-      raw_en_context_after: contextAfter,
-      sentences: [
-        {
-          id: idx + 1,
-          prefix: sentence.prefix,
-          text: sentence.text,
-        },
-      ],
+      raw_en_context_before: [],
+      raw_en_context_after: [],
+      sentences: [{
+        prefix: '',
+        text: part,
+        id: 0,
+      }],
     });
-  }
 
-  let hasRegionalVariant = false;
-  let targetLangCode = targetLang;
-  const targetLangParts = targetLang.split('-');
-  if (targetLangParts.length > 1) {
-    targetLangCode = targetLangParts[0];
-    hasRegionalVariant = true;
-  }
 
-  const iCount = getICount(text);
-  const id = getRandomNumber();
+    let hasRegionalVariant = false;
+    let targetLangCode = targetLang;
+    const targetLangParts = targetLang.split('-');
+    if (targetLangParts.length > 1) {
+      targetLangCode = targetLangParts[0];
+      hasRegionalVariant = true;
+    }
 
-  const commonJobParams = {
-    mode: 'translate',
-    ...(hasRegionalVariant && { regionalVariant: targetLang }),
-  };
+    const id = getRandomNumber();
 
-  const postData = {
-    jsonrpc: '2.0',
-    method: 'LMT_handle_jobs',
-    id: id,
-    params: {
-      jobs: jobs,
-      lang: {
-        source_lang_computed: detectedSourceLang.toUpperCase(),
-        target_lang: targetLangCode.toUpperCase(),
+    let postData = {
+      jsonrpc: '2.0',
+      method: 'LMT_handle_jobs',
+      id: id,
+      params: {
+        commonJobParams: {
+          mode: 'translate',
+          formality: 'undefined',
+          transcribeAs: 'romanize',
+          advancedMode: false,
+          textType: tagHandling,
+          wasSpoken: false,
+        },
+        lang: {
+          source_lang_user_selected: 'auto',
+          target_lang: targetLangCode.toUpperCase(),
+          source_lang_computed: currentSourceLang.toUpperCase(),
+        },
+        jobs: jobs,
+        timestamp: getTimeStamp(getICount(part)),
       },
-      priority: 1,
-      commonJobParams: commonJobParams,
-      timestamp: getTimestamp(iCount),
-    },
-  };
+    };
 
-  const response = await makeRequest(postData, 'LMT_handle_jobs', dlSession, proxy);
 
-  if (!response || !response.result) {
-    throw new Error('Не удалось выполнить перевод.');
-  }
+    if (hasRegionalVariant) {
+      postData.params.commonJobParams.regionalVariant = targetLang;
+    }
 
-  const translations = response.result.translations;
-  let translatedText = '';
-  let alternatives = [];
 
-  if (translations && translations.length > 0) {
-    const numBeams = translations[0].beams.length;
-    for (let i = 0; i < numBeams; i++) {
-      let altText = '';
+    const response = await makeRequest(postData, dlSession, proxy);
+
+    if (!response || !response.result) {
+      throw new Error('Не удалось выполнить перевод.');
+    }
+
+    let partTranslation = '';
+    let partAlternatives = [];
+
+    const translations = response.result.translations;
+    if (translations && translations.length > 0) {
       for (const translation of translations) {
-        if (i < translation.beams.length) {
-          altText += translation.beams[i].sentences.map(s => s.text).join(' ');
+        partTranslation += translation.beams[0].sentences[0].text + ' ';
+      }
+      partTranslation = partTranslation.trim();
+
+      const numBeams = translations[0].beams.length;
+      for (let i = 1; i < numBeams; i++) {
+        let altText = '';
+        for (const translation of translations) {
+          if (i < translation.beams.length) {
+            altText += translation.beams[i].sentences[0].text + ' ';
+          }
+        }
+        if (altText.trim() !== '') {
+          partAlternatives.push(altText.trim());
         }
       }
-      if (altText) {
-        alternatives.push(altText);
+    }
+
+
+    if (!partTranslation) {
+      throw new Error('Перевод не получен.');
+    }
+
+    translatedParts.push(partTranslation);
+    allAlternatives.push(partAlternatives);
+  }
+
+  const translatedText = translatedParts.join('\n');
+
+  let combinedAlternatives = [];
+  const maxAlts = Math.max(...allAlternatives.map(alts => alts.length));
+
+  for (let i = 0; i < maxAlts; i++) {
+    let altParts = [];
+    for (let j = 0; j < allAlternatives.length; j++) {
+      if (i < allAlternatives[j].length) {
+        altParts.push(allAlternatives[j][i]);
+      } else if (translatedParts[j] === '') {
+        altParts.push('');
+      }
+      else {
+        altParts.push(translatedParts[j]);
       }
     }
-
-    for (const translation of translations) {
-      translatedText += translation.beams[0].sentences.map(s => s.text).join(' ') + ' ';
-    }
-    translatedText = translatedText.trim();
+    combinedAlternatives.push(altParts.join('\n'));
   }
 
-  if (!translatedText) {
-    throw new Error('Перевод не получен.');
-  }
 
   const result = {
     code: 200,
-    id: id,
+    id: getRandomNumber(), // New ID for complete translation
     data: translatedText,
-    alternatives: alternatives,
-    source_lang: detectedSourceLang,
+    alternatives: combinedAlternatives,
+    source_lang: sourceLang,
     target_lang: targetLang,
     method: dlSession ? 'Pro' : 'Free',
   };
@@ -251,4 +263,6 @@ async function translate(
   return result;
 }
 
-exports.translate = translate;
+module.exports = {
+  translate: translate,
+};

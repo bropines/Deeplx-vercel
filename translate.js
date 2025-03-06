@@ -39,6 +39,9 @@ async function makeRequest(postData, dlSession = '', proxy = '') {
   const urlFull = `${DEEPL_BASE_URL}`;
   const postStr = formatPostString(postData);
 
+  // **Debug Logging - Added Here:**
+  console.log("JSON Payload отправляется в DeepL:", JSON.stringify(postData, null, 2));
+
   const headers = {
     'Content-Type': 'application/json',
     'User-Agent': 'DeepL/1627620 CFNetwork/3826.500.62.2.1 Darwin/24.4.0',
@@ -133,8 +136,8 @@ async function translate(
 
     let currentSourceLang = sourceLang;
     if (sourceLang === 'auto' || sourceLang === '') {
-      // В JS версии пока не определяем язык, оставляем 'auto' для DeepL
-      currentSourceLang = 'auto';
+        // В JS версии пока не определяем язык, оставляем 'auto' для DeepL
+        currentSourceLang = 'auto';
     }
 
     const jobs = [];

@@ -123,6 +123,11 @@ async function translate(
     throw new Error('Нет текста для перевода.');
   }
 
+  // **Убедимся, что tagHandling всегда имеет значение, если не передано**
+  if (!tagHandling) {
+    tagHandling = 'plaintext'; // Явно устанавливаем значение по умолчанию, если tagHandling пустой/undefined
+  }
+
   const textParts = text.split('\n'); // Разделение текста на части по новой строке
   const translatedParts = [];
   const allAlternatives = [];
@@ -174,7 +179,7 @@ async function translate(
           formality: 'undefined',
           transcribeAs: 'romanize',
           advancedMode: false,
-          textType: tagHandling,
+          textType: tagHandling, // Теперь tagHandling гарантированно имеет значение
           wasSpoken: false,
         },
         lang: {

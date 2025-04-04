@@ -25,13 +25,14 @@ After clicking the button, simply follow the prompts to set up the API on Vercel
 Running Locally
 ---------------
 
-Here is the local deployment method described in the [deeplx-serverless](https://github.com/LegendLeo/deeplx-serverless/) repository from [LegendLeo](https://github.com/LegendLeo)
+All the same, I added a local server so that you can start and test it. To do this, you need to install Node.js and NPM (I use Bun, but this is not necessary).
+After installing node.js and NPM, follow the following commands in the terminal:
 
 ```bash
-git clone https://github.com/LegendLeo/deeplx-serverless
-cd deeplx-serverless
-npm install
-npm run start
+git clone https://github.com/bropines/Deeplx-vercel
+cd Deeplx-vercel
+npm install (or bun install)
+npm server.js (or bun server.js)
 ```
 
 This will start a local server with the API running on `http://localhost:9000`.

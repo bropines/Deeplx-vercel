@@ -1,4 +1,4 @@
-const { translate } = require('../translate');
+const { translate } = require('../main');
 
 module.exports = async (req, res) => {
   const startTime = Date.now();
@@ -16,11 +16,11 @@ module.exports = async (req, res) => {
     console.log(`[LOG] ${new Date().toISOString()} | 404 | ${duration}ms | POST "/translate"`);
     return res.status(404).json({
       code: 404,
-      message: 'Путь не найден',
+      message: 'The path was not found',
     });
   }
 
-  const { text, source_lang = 'auto', target_lang = 'RU', tag_handling = '', dl_session = '', proxy = '' } = req.body;
+  const { text, source_lang = 'auto', target_lang = 'En', tag_handling = '', dl_session = '', proxy = '' } = req.body;
 
   try {
     const result = await translate(text, source_lang, target_lang, tag_handling, dl_session, proxy);
@@ -39,6 +39,6 @@ module.exports = async (req, res) => {
   } catch (error) {
     const duration = Date.now() - startTime;
     console.error(`[ERROR] ${new Date().toISOString()} | 500 | ${duration}ms | POST "/translate" | ${error.message}`);
-    res.status(500).json({ code: 500, message: 'Ошибка перевода', error: error.message });
+    res.status(500).json({ code: 500, message: 'Translation error', error: error.message });
   }
 };
